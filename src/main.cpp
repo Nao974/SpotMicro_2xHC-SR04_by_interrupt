@@ -15,9 +15,9 @@
 
 
 const uint8_t  NBRE_SERVO=12;
-const uint8_t  MAX_POS=180;
-const uint16_t TIME = 1000;
-const uint16_t FRAME = 10;
+const uint8_t  MAX_POS=180; // Servo Max 180°
+const uint16_t TIME = 1000; // Home to Down in 1000 ms
+const uint16_t FRAME = 10;  // Time divider to limit steps every 10 ms
 
 // Configuration of the various servo motors
 // Settings and positions made from the Choreograph program: 
@@ -36,6 +36,8 @@ choreograph chore;
 float decrement[NBRE_SERVO];
 uint16_t iteration;
 int8_t direction;
+
+uint32_t next_time; // variable to replace the delay () blocking function
 
 // Servo movement according to its orientation and min / max limit
 void moveSingle_safe(uint8_t servo_id, uint8_t pos) {
@@ -60,19 +62,20 @@ void setup() {
 
     position_init(); // to home position
 
-// Calculates the difference between the 2 positions for each servo 
-// depending on the time desired to switch from one to the other
+    // Calculates the difference between the 2 positions for each servo 
+    // depending on the time desired to switch from one to the other
     for (uint8_t i=0; i< NBRE_SERVO; i++)
         decrement[i] = double(pos_down[i] - pos_home[i]) / (TIME / FRAME);
 
     iteration = 0;  
     direction = 0;  
     delay(5000); // Just a delay for the installation of the robot after starting
+    next_time = millis();
 }
 
 void loop() {
-// If the distance measurement is finished, calculate in cm 
-// and minimum between left and right    
+    // If the distance measurement is finished, calculate in cm 
+    // and minimum between left and right    
     if (finished) {
         finished= false;
         if (!side) {
@@ -90,17 +93,17 @@ void loop() {
         side = !side;
     }
 
-// Choice forwards or backwards according to the measured distance
-    if ( range < 20 ) direction = 1;
-    else direction = -1;
+    if (millis() >= next_time){ // Allows you to remove the delay () blocking function
+        // Choice forwards or backwards according to the measured distance
+        if ( range < 20 ) direction = 1;
+        else direction = -1;
 
-// Limitation to not exceed the min / max positions
-    if ( ( (iteration + direction) < (TIME / FRAME) ) && ( (iteration + direction) >= 0) ) iteration += direction;
+        // Limitation to not exceed the min / max positions
+        if ( ( (iteration + direction) < (TIME / FRAME) ) && ( (iteration + direction) >= 0) ) iteration += direction;
 
-// Displacement of each servo according to calculated position
-    for (uint8_t i=0; i< NBRE_SERVO; i++)
-        moveSingle_safe(i, pos_home[i] + ( decrement[i] * iteration) );
-
-// A REMPLACER PAR Millis()
-    delay(FRAME);
+        // Displacement of each servo according to calculated position
+        for (uint8_t i=0; i< NBRE_SERVO; i++)
+            moveSingle_safe(i, pos_home[i] + ( decrement[i] * iteration) );
+        next_time = millis() + FRAME; // every FRAME ms
+    }
 }
